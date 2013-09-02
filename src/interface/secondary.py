@@ -3,6 +3,8 @@ Created on Aug 31, 2013
 
 @author: qurban.ali
 '''
+import site
+site.addsitedir(r"R:\Python_Scripts")
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 from PyQt4 import uic
@@ -14,55 +16,45 @@ modulePath = sys.modules[__name__].__file__
 root = osp.dirname(osp.dirname(osp.dirname(modulePath)))
 home = osp.expanduser('~')
 cdDirectory = osp.join(home, 'cropDesk')
-os.mkdir(cdDirectory)
 settingsFile = osp.join(cdDirectory, 'settings.txt')
-fd = open(settingsFile, 'w')
-fd.close()
 
 class Label(QLabel):
-    def __init__(self, parentWin = None):
-        super(Label, self).__init__(parentWin)
+    def __init__(self, parent = None):
+        super(Label, self).__init__(parent)
+        self.rect = QRect()
+        self.parentWin = parent
         self.mousePos = QPoint()
         self.mouseDown = False
-        self.rect = QRect()
-        self.pix = QPixmap.grabWindow(QApplication.desktop().winId())
-        image = osp.join(cdDirectory, 'image.png')
-        self.pix.save(image, None, 100)
-        self.setStyleSheet("background-image: url("+ image +")")
         cursor = QCursor()
         cursor.setShape(Qt.CrossCursor)
         self.setCursor(cursor)
+        self.rubberBand = QRubberBand(QRubberBand.Rectangle, self)
         
     def mousePressEvent(self, event):
+        self.rubberBand.setGeometry(QRect(0,0,0,0))
         self.mouseDown = True
-        self.mousePos = event.pos()
-        self.rect.setTopLeft(self.mousePos)
-    
+        self.rect.setTopLeft(event.pos())
+        self.rubberBand.show()
+
     def mouseReleaseEvent(self, event):
-        self.rect.setBottomRight(event.pos())
-        self.repaint()
-        self.saveCropped()
-        
-    def saveCropped(self, path):
-        self.pix.copy(self.rect).save(path, None, 100)
+        self.mouseDown = False
+        width = self.rubberBand.size().width()
+        height = self.rubberBand.size().height()
+        if width > 5 and height > 5:
+            self.parentWin.showDoneMenu(QRect(self.rubberBand.pos(),
+                                                        self.rubberBand.size()))
         
     def mouseMoveEvent(self, event):
         if self.mouseDown:
             self.rect.setBottomRight(event.pos())
-            self.repaint()
-        
-    def paintEvent(self, event):
-        if self.rect.x() > 0:
-            painter = QPainter(self)    
-            painter.setPen(QPen(Qt.black, 1, Qt.DashLine));
-            painter.drawRect(self.rect);
+            self.rubberBand.setGeometry(self.rect.normalized())
             
 class Menu(QMenu):
     def __init__(self, parentWin = None):
         super(Menu, self).__init__(parentWin)
         self.parentWin = parentWin
-        acts = ['Capture', 'Settings']
-        self.createActions()
+        acts = ['Capture', 'Preferences']
+        self.createActions(acts)
         self.addSeparator()
         self.createActions(['Exit'])
         map(lambda action: action.triggered.connect
@@ -70,28 +62,48 @@ class Menu(QMenu):
         
     def createActions(self, names):
         for name in names:
-            action = QAction(name)
+            action = QAction(name, self)
+            self.addAction(action)
     
     def handleActions(self, action):
         text = str(action.text())
         if text == 'Capture':
+            self.parentWin.captureDesk()
             self.parentWin.showMaximized()
-        if text == 'Settings':
-            win = Settings(self.parentWin)
-            win.showMaximized()
+        if text == 'Preferences':
+            self.parentWin.preferencesWindow.exec_()
+        if text == 'Exit':
+            self.parentWin.deleteLater()
             
 
 Form, Base = uic.loadUiType(r"%s\ui\settings.ui"%root)
-class Settings(Form, Base):
+class Preferences(Form, Base):
     def __init__(self, parent = None):
-        super(Settings, self).__init__(parent)
+        super(Preferences, self).__init__(parent)
         self.setupUi(self)
+        self.setWindowTitle('cropDesk')
         self.parentWin = parent
         self.saveButton.clicked.connect(self.save)
         self.cancelButton.clicked.connect(self.close)
-        self.loadSettings()
+        self.browseButton.clicked.connect(lambda: folderDialog(self))
+        
+    def showEvent(self, event):
+        self.loadPreferences()
             
-    def loadSettings(self):
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key_Escape:
+            self.hide()
+            
+    def closeEvent(self, event):
+        self.hide()
+        event.ignore()
+        
+    def changeEvent(self, event):
+        if self.isMinimized():
+            self.show()
+            self.hide()        
+    
+    def loadPreferences(self):
         settings = {}
         fd = open(osp.join(cdDirectory, 'settings.txt'))
         value = fd.read()
@@ -99,26 +111,34 @@ class Settings(Form, Base):
             settings.update(eval(value))
             self.prefixBox.setText(settings['prefix'])
             self.pathBox.setText(settings['path'])
+            if settings['closeWhenCropped'] == 'True':
+                self.closeWhenCroppedButton.setChecked(True)
         fd.close()
         
     def save(self):
         path = str(self.pathBox.text())
         prefix = str(self.prefixBox.text())
         if not path:
-            msgBox(self, msg = 'Path not specified')
+            msgBox(self, msg = 'Path not specified', icon = QMessageBox.Warning)
             return
         if not prefix:
-            msgBox(self, msg = 'Prefix not specified')
+            msgBox(self, msg = 'Prefix not specified',
+                   icon = QMessageBox.Warning)
             return
         if not osp.exists(path):
-            msgBox(self, 'The system can not find the path specified')
+            msgBox(self, 'The system can not find the path specified',
+                   icon = QMessageBox.Warning)
             return
         #save the settings
-        fd.open(settingsFile, 'w')
-        settings = {'prefix': prefix, 'path': path}
+        closeWhenCropped = 'False'
+        if self.closeWhenCroppedButton.isChecked():
+            closeWhenCropped = 'True'
+        fd = open(settingsFile, 'w')
+        settings = {'prefix': prefix, 'path': path,
+                    'closeWhenCropped': closeWhenCropped}
         fd.write(str(settings))
         fd.close()
-        
+        self.hide()
             
 def msgBox(parent, msg = None, btns = QMessageBox.Ok,
            icon = None, ques = None, details = None):
@@ -144,4 +164,9 @@ def msgBox(parent, msg = None, btns = QMessageBox.Ok,
         buttonPressed = mBox.exec_()
         return buttonPressed
         
-            
+def folderDialog(parent):
+    '''shows the file dialog listing directories only'''
+    path = QFileDialog.getExistingDirectory(parent, 'Directory', '',
+                                            QFileDialog.ShowDirsOnly)
+    parent.pathBox.setText(path)
+    
