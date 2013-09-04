@@ -52,7 +52,7 @@
    <item>
     <widget class="QCheckBox" name="closeWhenCroppedButton">
      <property name="text">
-      <string>Close when crppped</string>
+      <string>Close when cropped</string>
      </property>
     </widget>
    </item>

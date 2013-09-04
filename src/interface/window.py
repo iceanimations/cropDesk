@@ -14,7 +14,7 @@ import os.path as osp
 modulePath = sys.modules[__name__].__file__
 root = osp.dirname(osp.dirname(osp.dirname(modulePath)))
 home = osp.expanduser('~')
-cdDirectory = osp.join(home, 'cropDesk')
+cdDirectory = osp.join(home, '.cropDesk')
 try:
     os.mkdir(cdDirectory)
 except WindowsError:
@@ -40,7 +40,11 @@ class Window(QScrollArea):
         self.doneMenu = None
         self.captureDesk()
         self.showPreferences()
-        
+        # make the window full sized
+        self.setWindowFlags(Qt.MSWindowsFixedSizeDialogHint)
+        self.setWindowFlags(Qt.CustomizeWindowHint)
+        self.setWindowFlags(Qt.FramelessWindowHint)
+
     def captureDesk(self):
         self.label = secui.Label(self)
         self.layout.addWidget(self.label)
@@ -48,46 +52,31 @@ class Window(QScrollArea):
         self.label.setPixmap(self.pixmap)
         self.label.show()
         self.label.repaint()
-    
+
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Escape:
-            self.hide()
-            
-    def closeEvent(self, event):
-        self.hide()
-        event.ignore()
-        
-    def changeEvent(self, event):
-        try: self.label.rubberBand.setGeometry(0, 0, 0, 0)
-        except: pass
-        if self.isMinimized():
-            self.show()
-            self.hide()
-            
-    def hideEvent(self, event):
-        try: self.label.deleteLater()
-        except: pass
-    
+            self.close()
+
     def setTrayIcon(self):
         self.trayIcon = QSystemTrayIcon(self)
         self.trayIcon.setToolTip("cropDesk")
         self.trayIcon.setIcon(self.icon)
         self.trayIcon.show()
         self.trayIcon.setContextMenu(secui.Menu(self))
-        
+
     def showDoneMenu(self, rect):
         self.rect = rect
         self.doneMenu = QMenu(self)
-        self.doneMenu.close = lambda: None
-        self.doneMenu.addAction('DONE')
+        self.doneMenu.addAction('Crop')
         self.doneMenu.actions()[0].triggered.connect(self.saveCropped)
         self.doneMenu.popup(QCursor.pos())
-        
+
     def saveCropped(self):
         fd = open(settingsFile)
+        fd.seek(0)
         data = fd.read()
         if not data:
-            self.preferencesWindow.exec_()()
+            self.preferencesWindow.exec_()
             fd.seek(0)
             data = fd.read()
             if not data: return
@@ -101,9 +90,10 @@ class Window(QScrollArea):
                          ques = 'Do you want to change the Preferences?',
                          icon = QMessageBox.Information)
             if btn == QMessageBox.Yes:
-                self.preferencesWindow.exec_()()
+                self.preferencesWindow.exec_()
                 fd.seek(0)
                 data = fd.read()
+                fd.close()
                 if not data:
                     return
                 data = eval(data)
@@ -113,14 +103,18 @@ class Window(QScrollArea):
         fname = self.fileName(path, prefix)
         path = osp.join(path, fname)
         if self.pixmap.height() > self.height(): # due to some display bug
-            self.rect.setY(self.rect.y() + 25)
-            self.rect.setHeight(self.rect.height() + 25)
+            self.rect.setY(self.rect.y() + 28)
+            self.rect.setHeight(self.rect.height() + 28)
+        path = osp.normpath(path)
+        path = osp.splitext(path)[0] + '.png'
         self.pixmap.copy(self.rect).save(path, None, 100)
+        path2 = osp.splitext(path)[0]
+        os.rename(path, path2 + '.jpeg')
         if data['closeWhenCropped'] == 'True':
-            self.hide()
+            self.close()
         clipBoard = QApplication.clipboard()
         clipBoard.setText(path)
-        
+
     def fileName(self, path, name):
         count = 1
         name += str(count) + '.jpeg'
@@ -130,8 +124,7 @@ class Window(QScrollArea):
                 name = name.replace(str(count - 1), str(count))
             else:
                 return name
-        
+
     def showPreferences(self):
         self.preferencesWindow = secui.Preferences(self)
-        
-        
+

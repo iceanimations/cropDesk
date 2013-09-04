@@ -1,6 +1,5 @@
 '''
 Created on Aug 31, 2013
-
 @author: qurban.ali
 '''
 import site
@@ -15,7 +14,7 @@ import sys
 modulePath = sys.modules[__name__].__file__
 root = osp.dirname(osp.dirname(osp.dirname(modulePath)))
 home = osp.expanduser('~')
-cdDirectory = osp.join(home, 'cropDesk')
+cdDirectory = osp.join(home, '.cropDesk')
 settingsFile = osp.join(cdDirectory, 'settings.txt')
 
 class Label(QLabel):
@@ -32,16 +31,18 @@ class Label(QLabel):
         
     def mousePressEvent(self, event):
         self.rubberBand.setGeometry(QRect(0,0,0,0))
-        self.mouseDown = True
-        self.rect.setTopLeft(event.pos())
-        self.rubberBand.show()
+        if event.button() == Qt.LeftButton:
+            self.mouseDown = True
+            self.rect.setTopLeft(event.pos())
+            self.rubberBand.show()
 
     def mouseReleaseEvent(self, event):
-        self.mouseDown = False
-        width = self.rubberBand.size().width()
-        height = self.rubberBand.size().height()
-        if width > 5 and height > 5:
-            self.parentWin.showDoneMenu(QRect(self.rubberBand.pos(),
+        if event.button() == Qt.LeftButton:
+            self.mouseDown = False
+            width = self.rubberBand.size().width()
+            height = self.rubberBand.size().height()
+            if width > 5 and height > 5:
+                self.parentWin.showDoneMenu(QRect(self.rubberBand.pos(),
                                                         self.rubberBand.size()))
         
     def mouseMoveEvent(self, event):
@@ -54,11 +55,14 @@ class Menu(QMenu):
         super(Menu, self).__init__(parentWin)
         self.parentWin = parentWin
         acts = ['Capture', 'Preferences']
+        self.setObjectName('contextMenu')
         self.createActions(acts)
         self.addSeparator()
         self.createActions(['Exit'])
         map(lambda action: action.triggered.connect
             (lambda: self.handleActions(action)), self.actions())
+        shortcut = QShortcut(QKeySequence(self.tr('Ctrl+Alt+c',
+                                                  'contextMenu|Capture')), self)
         
     def createActions(self, names):
         for name in names:
@@ -73,7 +77,7 @@ class Menu(QMenu):
         if text == 'Preferences':
             self.parentWin.preferencesWindow.exec_()
         if text == 'Exit':
-            self.parentWin.deleteLater()
+            self.parentWin.close()
             
 
 Form, Base = uic.loadUiType(r"%s\ui\settings.ui"%root)
@@ -81,7 +85,7 @@ class Preferences(Form, Base):
     def __init__(self, parent = None):
         super(Preferences, self).__init__(parent)
         self.setupUi(self)
-        self.setWindowTitle('cropDesk')
+        self.setWindowTitle('Preferences')
         self.parentWin = parent
         self.saveButton.clicked.connect(self.save)
         self.cancelButton.clicked.connect(self.close)
@@ -90,18 +94,18 @@ class Preferences(Form, Base):
     def showEvent(self, event):
         self.loadPreferences()
             
-    def keyPressEvent(self, event):
-        if event.key() == Qt.Key_Escape:
-            self.hide()
-            
-    def closeEvent(self, event):
-        self.hide()
-        event.ignore()
-        
-    def changeEvent(self, event):
-        if self.isMinimized():
-            self.show()
-            self.hide()        
+#    def keyPressEvent(self, event):
+#        if event.key() == Qt.Key_Escape:
+#            self.hide()
+#            
+#    def closeEvent(self, event):
+#        self.hide()
+#        event.ignore()
+#        
+#    def changeEvent(self, event):
+#        if self.isMinimized():
+#            self.show()
+#            self.hide()        
     
     def loadPreferences(self):
         settings = {}
@@ -138,7 +142,7 @@ class Preferences(Form, Base):
                     'closeWhenCropped': closeWhenCropped}
         fd.write(str(settings))
         fd.close()
-        self.hide()
+        self.close()
             
 def msgBox(parent, msg = None, btns = QMessageBox.Ok,
            icon = None, ques = None, details = None):
