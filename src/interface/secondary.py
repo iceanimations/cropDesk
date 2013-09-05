@@ -18,47 +18,66 @@ cdDirectory = osp.join(home, '.cropDesk')
 settingsFile = osp.join(cdDirectory, 'settings.txt')
 
 class Label(QLabel):
-    def __init__(self, parent = None):
+    def __init__(self, parent = None, pixmap = None):
         super(Label, self).__init__(parent)
         self.rect = QRect()
         self.parentWin = parent
-        self.mousePos = QPoint()
         self.mouseDown = False
         cursor = QCursor()
         cursor.setShape(Qt.CrossCursor)
         self.setCursor(cursor)
-        self.rubberBand = QRubberBand(QRubberBand.Rectangle, self)
+        self.resultImage = QPixmap(pixmap.size())
+        self.resultImage.fill(QColor(0, 0, 0, alpha = 130))
+        self.sourceImage = QPixmap(pixmap.size())
+        self.sourceImage.fill(QColor(0, 0, 0, alpha = 130))
+        self.setPixmap(self.resultImage)
         
+    
     def mousePressEvent(self, event):
-        self.rubberBand.setGeometry(QRect(0,0,0,0))
         if event.button() == Qt.LeftButton:
             self.mouseDown = True
             self.rect.setTopLeft(event.pos())
-            self.rubberBand.show()
+        self.setPixmap(self.sourceImage)
 
     def mouseReleaseEvent(self, event):
+        self.parentWin.showContextMenu(event)
         if event.button() == Qt.LeftButton:
             self.mouseDown = False
-            width = self.rubberBand.size().width()
-            height = self.rubberBand.size().height()
+            width = self.rect.width()
+            height = self.rect.height()
             if width > 5 and height > 5:
-                self.parentWin.showDoneMenu(QRect(self.rubberBand.pos(),
-                                                        self.rubberBand.size()))
+                self.parentWin.showDoneMenu(self.rect)
         
     def mouseMoveEvent(self, event):
         if self.mouseDown:
             self.rect.setBottomRight(event.pos())
-            self.rubberBand.setGeometry(self.rect.normalized())
+            self.drawImages()
+            self.repaint()
+            
+    def drawImages(self):
+        painter = QPainter(self.resultImage)
+        painter.setCompositionMode(QPainter.CompositionMode_Source)
+        painter.fillRect(self.resultImage.rect(), Qt.transparent)
+        self.destinationImage = QPixmap(self.rect.size())
+        self.destinationImage.fill(QColor(0, 0, 0, alpha = 130))
+        painter.setCompositionMode(QPainter.CompositionMode_SourceOver)
+        painter.drawPixmap(self.rect.topLeft() ,self.destinationImage)
+        painter.setCompositionMode(QPainter.CompositionMode_SourceOut)
+        painter.drawPixmap(0, 0, self.sourceImage)
+        painter.end()
+        self.setPixmap(self.resultImage)
+        
+        
             
 class Menu(QMenu):
     def __init__(self, parentWin = None):
         super(Menu, self).__init__(parentWin)
         self.parentWin = parentWin
-        acts = ['Capture', 'Preferences']
+        acts = ['Help', 'Preferences']
         self.setObjectName('contextMenu')
         self.createActions(acts)
         self.addSeparator()
-        self.createActions(['Exit'])
+        self.createActions(['Cancel'])
         map(lambda action: action.triggered.connect
             (lambda: self.handleActions(action)), self.actions())
         shortcut = QShortcut(QKeySequence(self.tr('Ctrl+Alt+c',
@@ -75,9 +94,11 @@ class Menu(QMenu):
             self.parentWin.captureDesk()
             self.parentWin.showMaximized()
         if text == 'Preferences':
-            self.parentWin.preferencesWindow.exec_()
-        if text == 'Exit':
+            self.parentWin.showPreferences()
+        if text == 'Cancel':
             self.parentWin.close()
+        if text == 'Help':
+            msgBox(self.parentWin, msg= helpMsg, icon = QMessageBox.Information)
             
 
 Form, Base = uic.loadUiType(r"%s\ui\settings.ui"%root)
@@ -156,7 +177,7 @@ def msgBox(parent, msg = None, btns = QMessageBox.Ok,
     if msg:
         mBox = QMessageBox(parent)
         mBox.setWindowModality(Qt.ApplicationModal)
-        mBox.setWindowTitle('Shader Transfer')
+        mBox.setWindowTitle('cropDesk')
         mBox.setText(msg)
         if ques:
             mBox.setInformativeText(ques)
@@ -173,4 +194,17 @@ def folderDialog(parent):
     path = QFileDialog.getExistingDirectory(parent, 'Directory', '',
                                             QFileDialog.ShowDirsOnly)
     parent.pathBox.setText(path)
+    
+helpMsg = ('- Cropping: Press left mouse button and drag it '+
+            'through the area which you want to crop.\n'+
+            '- Cancel cropping: Press Esc key on your keyboard.\n'+
+            '- Preferences: Preferences window lets you manage:\na) Where to'+ 
+            ' save the cropped images.\nb) What name should be given to the '+ 
+            'cropped image (cropDesk will append 1,2,3... at the end of each '+
+            'image name if you save multiple images in the same directory with'+
+            ' same name.)\nc) "Close window when cropped" option closes the the'
+            +' cropping window when you are done with the first crop.'+
+            '\n- The path to the latest cropped image is always copied to the'+ 
+            ' clipboard, you can paste it whereever you want after cropping the'
+             +' image.')
     

@@ -27,7 +27,7 @@ try:
 except WindowsError:
     pass
 
-class Window(QScrollArea):
+class Window(QWidget):
     def __init__(self, parent = None):
         super(Window, self).__init__(parent)
         self.icon = QIcon(r"%s\icons\cd.png"%root)
@@ -39,23 +39,28 @@ class Window(QScrollArea):
         self.setTrayIcon()
         self.doneMenu = None
         self.captureDesk()
-        self.showPreferences()
+        self.setWindowModality(Qt.WindowModal)
         # make the window full sized
         self.setWindowFlags(Qt.MSWindowsFixedSizeDialogHint)
         self.setWindowFlags(Qt.CustomizeWindowHint)
         self.setWindowFlags(Qt.FramelessWindowHint)
 
     def captureDesk(self):
-        self.label = secui.Label(self)
-        self.layout.addWidget(self.label)
         self.pixmap = QPixmap.grabWindow(QApplication.desktop().winId())
-        self.label.setPixmap(self.pixmap)
-        self.label.show()
-        self.label.repaint()
+        self.label = secui.Label(self, self.pixmap)
+        self.layout.addWidget(self.label)
+        self.pixmap.save('D:/tempImage.png', None, 100)
+        self.label.setStyleSheet("background-image: url(D:/tempImage.png)")
+        #self.label.setPixmap(self.pixmap)
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Escape:
             self.close()
+            
+    def showContextMenu(self, event):
+        if event.button() == Qt.RightButton:
+            menu = secui.Menu(self)
+            menu.popup(QCursor.pos())
 
     def setTrayIcon(self):
         self.trayIcon = QSystemTrayIcon(self)
@@ -73,10 +78,9 @@ class Window(QScrollArea):
 
     def saveCropped(self):
         fd = open(settingsFile)
-        fd.seek(0)
         data = fd.read()
         if not data:
-            self.preferencesWindow.exec_()
+            self.showPreferences()
             fd.seek(0)
             data = fd.read()
             if not data: return
@@ -90,7 +94,7 @@ class Window(QScrollArea):
                          ques = 'Do you want to change the Preferences?',
                          icon = QMessageBox.Information)
             if btn == QMessageBox.Yes:
-                self.preferencesWindow.exec_()
+                self.showPreferences()
                 fd.seek(0)
                 data = fd.read()
                 fd.close()
@@ -108,12 +112,14 @@ class Window(QScrollArea):
         path = osp.normpath(path)
         path = osp.splitext(path)[0] + '.png'
         self.pixmap.copy(self.rect).save(path, None, 100)
-        path2 = osp.splitext(path)[0]
-        os.rename(path, path2 + '.jpeg')
+        path2 = osp.splitext(path)[0] +'.jpeg'
+        os.rename(path, path2)
         if data['closeWhenCropped'] == 'True':
             self.close()
         clipBoard = QApplication.clipboard()
-        clipBoard.setText(path)
+        clipBoard.setText(path2)
+        try: os.remove('D:/tempImage.png')
+        except: pass
 
     def fileName(self, path, name):
         count = 1
@@ -127,4 +133,4 @@ class Window(QScrollArea):
 
     def showPreferences(self):
         self.preferencesWindow = secui.Preferences(self)
-
+        self.preferencesWindow.exec_()
