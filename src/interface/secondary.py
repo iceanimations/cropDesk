@@ -34,6 +34,7 @@ class Label(QLabel):
         
     
     def mousePressEvent(self, event):
+        self.rect.setSize(QSize(0,0))
         if event.button() == Qt.LeftButton:
             self.mouseDown = True
             self.rect.setTopLeft(event.pos())
@@ -98,7 +99,8 @@ class Menu(QMenu):
         if text == 'Cancel':
             self.parentWin.close()
         if text == 'Help':
-            msgBox(self.parentWin, msg= helpMsg, icon = QMessageBox.Information)
+            msgBox(self.parentWin, msg= helpMsg,
+                   icon = QMessageBox.Information, title = 'Help')
             
 
 Form, Base = uic.loadUiType(r"%s\ui\settings.ui"%root)
@@ -111,22 +113,10 @@ class Preferences(Form, Base):
         self.saveButton.clicked.connect(self.save)
         self.cancelButton.clicked.connect(self.close)
         self.browseButton.clicked.connect(lambda: folderDialog(self))
+        self.setStyle(QStyleFactory.create('plastique'))
         
     def showEvent(self, event):
-        self.loadPreferences()
-            
-#    def keyPressEvent(self, event):
-#        if event.key() == Qt.Key_Escape:
-#            self.hide()
-#            
-#    def closeEvent(self, event):
-#        self.hide()
-#        event.ignore()
-#        
-#    def changeEvent(self, event):
-#        if self.isMinimized():
-#            self.show()
-#            self.hide()        
+        self.loadPreferences()       
     
     def loadPreferences(self):
         settings = {}
@@ -166,7 +156,7 @@ class Preferences(Form, Base):
         self.close()
             
 def msgBox(parent, msg = None, btns = QMessageBox.Ok,
-           icon = None, ques = None, details = None):
+           icon = None, ques = None, details = None, title = 'cropDesk'):
     '''
     dispalys the warnings
     @params:
@@ -177,7 +167,7 @@ def msgBox(parent, msg = None, btns = QMessageBox.Ok,
     if msg:
         mBox = QMessageBox(parent)
         mBox.setWindowModality(Qt.ApplicationModal)
-        mBox.setWindowTitle('cropDesk')
+        mBox.setWindowTitle(title)
         mBox.setText(msg)
         if ques:
             mBox.setInformativeText(ques)
