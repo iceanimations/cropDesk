@@ -10,6 +10,7 @@ from PyQt4.QtCore import Qt
 import secondary as secui
 import sys
 import os
+import time
 import os.path as osp
 modulePath = sys.modules[__name__].__file__
 root = osp.dirname(osp.dirname(osp.dirname(modulePath)))
@@ -26,6 +27,7 @@ try:
         fd.close()
 except WindowsError:
     pass
+runningFile = osp.join(cdDirectory, 'running.txt')
 
 class Window(QWidget):
     def __init__(self, parent = None):
@@ -38,16 +40,66 @@ class Window(QWidget):
         self.setLayout(self.layout)
         self.setTrayIcon()
         self.doneMenu = None
+        self.data = None # data from settings file
+        self.setData()
         self.captureDesk()
-        self.setWindowModality(Qt.WindowModal)
+        self.setWindowModality(Qt.ApplicationModal)
+        self.runningFileCreated = False
+        self.thread = secui.Thread(self)
+        self.thread.start()
         # make the window full sized
         self.setWindowFlags(Qt.MSWindowsFixedSizeDialogHint)
         self.setWindowFlags(Qt.CustomizeWindowHint)
         self.setWindowFlags(Qt.FramelessWindowHint)
+        self.preferencesWindow = secui.Preferences(self)
+        
+    def switchView(self):
+        self.label.deleteLater()
+        self.captureDesk(self.pixmap)
+        
+    def monitorFile(self):
+        if self.runningFileCreated:
+            if not osp.exists(runningFile):
+                self.close()
+        
+    def setData(self):
+        '''
+        reads the settings file and fetches the data from it
+        '''
+        fd = open(settingsFile)
+        self.data = fd.read()
+        if not self.data:
+            self.preferencesWindow.exec_()
+            time.sleep(1)
+            fd.seek(0)
+            self.data = fd.read()
+            if not self.data: return
+        self.data = eval(self.data)
+        path = self.data['path']
+        prefix = self.data['prefix']
+        if not osp.exists(path) or not prefix:
+            btn = secui.msgBox(self,
+                         msg = 'No valid Settings found in preferences\n'+path,
+                         btns = QMessageBox.Yes | QMessageBox.No,
+                         ques = 'Do you want to change the Preferences?',
+                         icon = QMessageBox.Information)
+            if btn == QMessageBox.Yes:
+                self.preferencesWindow.exec_()
+                time.sleep(1)
+                fd.seek(0)
+                self.data = fd.read()
+                fd.close()
+                if not self.data:
+                    return
+                self.data = eval(self.data)
+            else: return
+        
 
-    def captureDesk(self):
-        self.pixmap = QPixmap.grabWindow(QApplication.desktop().winId())
-        self.label = secui.Label(self, self.pixmap)
+    def captureDesk(self, pix = None):
+        if not pix:
+            self.pixmap = QPixmap.grabWindow(QApplication.desktop().winId())
+        else: self.pixmap = pix
+        self.label = secui.Label(self, self.pixmap, self.data)
         self.layout.addWidget(self.label)
         self.pixmap.save('D:/tempImage.png', None, 100)
         self.label.setStyleSheet("background-image: url(D:/tempImage.png)")
@@ -55,7 +107,16 @@ class Window(QWidget):
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Escape:
-            self.close()
+            self.hide()
+            
+    def hideEvent(self, event):
+        fd = open(osp.join(runningFile), 'w')
+        fd.close()
+        self.runningFileCreated = True
+        
+    def closeEvent(self, event):
+        try: os.remove(runningFile)
+        except: pass
             
     def showContextMenu(self, event):
         if event.button() == Qt.RightButton:
@@ -67,7 +128,7 @@ class Window(QWidget):
         self.trayIcon.setToolTip("cropDesk")
         self.trayIcon.setIcon(self.icon)
         self.trayIcon.show()
-        self.trayIcon.setContextMenu(secui.Menu(self))
+        self.trayIcon.setContextMenu(secui.Menu(self, tray = True))
 
     def showDoneMenu(self, rect):
         self.rect = rect
@@ -77,33 +138,13 @@ class Window(QWidget):
         self.doneMenu.popup(QCursor.pos())
 
     def saveCropped(self):
-        fd = open(settingsFile)
-        data = fd.read()
-        if not data:
-            self.showPreferences()
-            fd.seek(0)
-            data = fd.read()
-            if not data: return
-        data = eval(data)
-        path = data['path']
-        prefix = data['prefix']
-        if not osp.exists(path) or not prefix:
-            btn = secui.msgBox(self,
-                         msg = 'No valid Settings found in preferences\n'+path,
-                         btns = QMessageBox.Yes | QMessageBox.No,
-                         ques = 'Do you want to change the Preferences?',
-                         icon = QMessageBox.Information)
-            if btn == QMessageBox.Yes:
-                self.showPreferences()
-                fd.seek(0)
-                data = fd.read()
-                fd.close()
-                if not data:
-                    return
-                data = eval(data)
-            else: return
-        path = data['path']
-        prefix = data['prefix']
+        if not self.data:
+            self.setData()
+            if not self.data:
+                return
+        path = self.data['path']
+        prefix = self.data['prefix']
+        imageQuality = self.data['imageQuality']
         fname = self.fileName(path, prefix)
         path = osp.join(path, fname)
         if self.pixmap.height() > self.height(): # due to some display bug
@@ -111,11 +152,11 @@ class Window(QWidget):
             self.rect.setHeight(self.rect.height() + 28)
         path = osp.normpath(path)
         path = osp.splitext(path)[0] + '.png'
-        self.pixmap.copy(self.rect).save(path, None, 100)
+        self.pixmap.copy(self.rect).save(path, None, imageQuality)
         path2 = osp.splitext(path)[0] +'.jpeg'
         os.rename(path, path2)
-        if data['closeWhenCropped'] == 'True':
-            self.close()
+        if self.data['closeWhenCropped'] == 'True':
+            self.hide()
         clipBoard = QApplication.clipboard()
         clipBoard.setText(path2)
         try: os.remove('D:/tempImage.png')
@@ -130,7 +171,3 @@ class Window(QWidget):
                 name = name.replace(str(count - 1), str(count))
             else:
                 return name
-
-    def showPreferences(self):
-        self.preferencesWindow = secui.Preferences(self)
-        self.preferencesWindow.exec_()

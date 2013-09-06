@@ -11,6 +11,7 @@ import os
 import os.path as osp
 import logic.cdLogic as logic
 import sys
+import time
 modulePath = sys.modules[__name__].__file__
 root = osp.dirname(osp.dirname(osp.dirname(modulePath)))
 home = osp.expanduser('~')
@@ -18,32 +19,55 @@ cdDirectory = osp.join(home, '.cropDesk')
 settingsFile = osp.join(cdDirectory, 'settings.txt')
 
 class Label(QLabel):
-    def __init__(self, parent = None, pixmap = None):
+    def __init__(self, parent = None, pixmap = None, data = {}):
         super(Label, self).__init__(parent)
         self.rect = QRect()
         self.parentWin = parent
+        self.pix = pixmap
+        self.darkenBackground = False
+        if data:
+            if data.has_key('darkenBackground'):
+                if data['darkenBackground'] == 'True':
+                    self.darkenBackground = True
         self.mouseDown = False
         cursor = QCursor()
         cursor.setShape(Qt.CrossCursor)
         self.setCursor(cursor)
-        self.resultImage = QPixmap(pixmap.size())
-        self.resultImage.fill(QColor(0, 0, 0, alpha = 130))
-        self.sourceImage = QPixmap(pixmap.size())
-        self.sourceImage.fill(QColor(0, 0, 0, alpha = 130))
-        self.setPixmap(self.resultImage)
-        
+        if self.darkenBackground:
+            self.resultImage = QPixmap(pixmap.size())
+            self.resultImage.fill(QColor(0, 0, 0, alpha = 100))
+            self.sourceImage = QPixmap(pixmap.size())
+            self.sourceImage.fill(QColor(0, 0, 0, alpha = 100))
+            self.setPixmap(self.resultImage)
+        else:
+            self.rubberBand = QRubberBand(QRubberBand.Rectangle, self)
+            self.rubberBand.paintEvent = self.rbPaintEvent
+            
+    def rbPaintEvent(self, event):
+        painter = QPainter(self.rubberBand)
+        painter.setPen(QPen(Qt.black, 1, Qt.DashLine))
+        painter.setBrush(QBrush(Qt.NoBrush))
+        rect = self.rubberBand.rect()
+        rect.setBottomRight(QPoint(rect.width() - 4, rect.height() - 4))
+        painter.drawRect(QRect(rect.normalized()))
     
     def mousePressEvent(self, event):
-        self.rect.setSize(QSize(0,0))
+        self.rect.setTopLeft(event.pos())
+        self.rect.setBottomRight(event.pos())
         if event.button() == Qt.LeftButton:
             self.mouseDown = True
             self.rect.setTopLeft(event.pos())
-        self.setPixmap(self.sourceImage)
+        if self.darkenBackground:
+            self.setPixmap(self.sourceImage)
+        else:
+            self.rubberBand.setGeometry(self.rect)
+            self.rubberBand.show()
 
     def mouseReleaseEvent(self, event):
         self.parentWin.showContextMenu(event)
         if event.button() == Qt.LeftButton:
             self.mouseDown = False
+            self.rect.setBottomRight(event.pos())
             width = self.rect.width()
             height = self.rect.height()
             if width > 5 and height > 5:
@@ -52,15 +76,18 @@ class Label(QLabel):
     def mouseMoveEvent(self, event):
         if self.mouseDown:
             self.rect.setBottomRight(event.pos())
-            self.drawImages()
-            self.repaint()
+            if self.darkenBackground:
+                self.drawImages()
+                self.repaint()
+            else:
+                self.rubberBand.setGeometry(self.rect)
             
     def drawImages(self):
         painter = QPainter(self.resultImage)
         painter.setCompositionMode(QPainter.CompositionMode_Source)
         painter.fillRect(self.resultImage.rect(), Qt.transparent)
         self.destinationImage = QPixmap(self.rect.size())
-        self.destinationImage.fill(QColor(0, 0, 0, alpha = 130))
+        self.destinationImage.fill(QColor(0, 0, 0, alpha = 255))
         painter.setCompositionMode(QPainter.CompositionMode_SourceOver)
         painter.drawPixmap(self.rect.topLeft() ,self.destinationImage)
         painter.setCompositionMode(QPainter.CompositionMode_SourceOut)
@@ -71,18 +98,23 @@ class Label(QLabel):
         
             
 class Menu(QMenu):
-    def __init__(self, parentWin = None):
+    def __init__(self, parentWin = None, tray = False):
         super(Menu, self).__init__(parentWin)
         self.parentWin = parentWin
-        acts = ['Help', 'Preferences']
+        acts = []
+        if tray:
+            acts.append('Capture')
+        acts.append('Help')
+        acts.append('Preferences')
         self.setObjectName('contextMenu')
         self.createActions(acts)
         self.addSeparator()
-        self.createActions(['Cancel'])
+        if not tray:
+            self.createActions(['Cancel'])
+        if tray:
+            self.createActions(['Exit'])
         map(lambda action: action.triggered.connect
             (lambda: self.handleActions(action)), self.actions())
-        shortcut = QShortcut(QKeySequence(self.tr('Ctrl+Alt+c',
-                                                  'contextMenu|Capture')), self)
         
     def createActions(self, names):
         for name in names:
@@ -92,16 +124,25 @@ class Menu(QMenu):
     def handleActions(self, action):
         text = str(action.text())
         if text == 'Capture':
+            self.parentWin.label.deleteLater()
             self.parentWin.captureDesk()
             self.parentWin.showMaximized()
         if text == 'Preferences':
-            self.parentWin.showPreferences()
+            self.parentWin.preferencesWindow.exec_()
         if text == 'Cancel':
+            self.parentWin.hide()
+        if text == 'Exit':
             self.parentWin.close()
+            self.close()
         if text == 'Help':
+            flag = False
+            if self.parentWin.isHidden():
+                self.parentWin.showMaximized()
+                flag = True
             msgBox(self.parentWin, msg= helpMsg,
                    icon = QMessageBox.Information, title = 'Help')
-            
+            if flag:
+                self.parentWin.hide()
 
 Form, Base = uic.loadUiType(r"%s\ui\settings.ui"%root)
 class Preferences(Form, Base):
@@ -111,23 +152,34 @@ class Preferences(Form, Base):
         self.setWindowTitle('Preferences')
         self.parentWin = parent
         self.saveButton.clicked.connect(self.save)
-        self.cancelButton.clicked.connect(self.close)
+        self.cancelButton.clicked.connect(self.hide)
         self.browseButton.clicked.connect(lambda: folderDialog(self))
-        self.setStyle(QStyleFactory.create('plastique'))
         
     def showEvent(self, event):
-        self.loadPreferences()       
+        self.loadPreferences()
+    
+    def closeEvent(self, event):
+        self.hide()
+        event.ignore()     
     
     def loadPreferences(self):
         settings = {}
-        fd = open(osp.join(cdDirectory, 'settings.txt'))
+        fd = open(osp.join(settingsFile))
         value = fd.read()
         if value:
             settings.update(eval(value))
-            self.prefixBox.setText(settings['prefix'])
-            self.pathBox.setText(settings['path'])
-            if settings['closeWhenCropped'] == 'True':
-                self.closeWhenCroppedButton.setChecked(True)
+            if settings.has_key('prefix'):
+                self.prefixBox.setText(settings['prefix'])
+            if settings.has_key('path'):
+                self.pathBox.setText(settings['path'])
+            if settings.has_key('closeWhenCropped'):
+                if settings['closeWhenCropped'] == 'True':
+                    self.closeWhenCroppedButton.setChecked(True)
+            if settings.has_key('darkenBackground'):
+                if settings['darkenBackground'] == 'True':
+                    self.darkenButton.setChecked(True)
+            if settings.has_key('imageQuality'):
+                self.imageQualityBox.setValue(settings['imageQuality'])
         fd.close()
         
     def save(self):
@@ -146,14 +198,25 @@ class Preferences(Form, Base):
             return
         #save the settings
         closeWhenCropped = 'False'
+        darken = 'False'
         if self.closeWhenCroppedButton.isChecked():
             closeWhenCropped = 'True'
+        if self.darkenButton.isChecked():
+            darken = 'True'
         fd = open(settingsFile, 'w')
         settings = {'prefix': prefix, 'path': path,
-                    'closeWhenCropped': closeWhenCropped}
+                    'closeWhenCropped': closeWhenCropped,
+                    'darkenBackground': darken,
+                    'imageQuality': self.imageQualityBox.value()}
         fd.write(str(settings))
         fd.close()
-        self.close()
+        self.hide()
+        self.parentWin.setData()
+        self.parentWin.switchView()
+        
+def msgBoxCloseEvent(*args):
+    print 'hello'
+    
             
 def msgBox(parent, msg = None, btns = QMessageBox.Ok,
            icon = None, ques = None, details = None, title = 'cropDesk'):
@@ -166,6 +229,7 @@ def msgBox(parent, msg = None, btns = QMessageBox.Ok,
     '''
     if msg:
         mBox = QMessageBox(parent)
+        mBox.closeEvent = msgBoxCloseEvent
         mBox.setWindowModality(Qt.ApplicationModal)
         mBox.setWindowTitle(title)
         mBox.setText(msg)
@@ -184,6 +248,19 @@ def folderDialog(parent):
     path = QFileDialog.getExistingDirectory(parent, 'Directory', '',
                                             QFileDialog.ShowDirsOnly)
     parent.pathBox.setText(path)
+    
+class Thread(QThread):
+    def __init__(self, parent = None):
+        super(Thread, self).__init__(parent)
+        self.parent = parent
+        self.testButton = QPushButton(self.parent)
+        self.testButton.hide()
+        self.testButton.released.connect(self.parent.monitorFile)
+    
+    def run(self):
+        while(True):
+            self.testButton.released.emit()
+            time.sleep(2)
     
 helpMsg = ('- Cropping: Press left mouse button and drag it '+
             'through the area which you want to crop.\n'+
