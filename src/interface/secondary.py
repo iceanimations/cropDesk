@@ -38,7 +38,7 @@ class Label(QLabel):
             self.resultImage.fill(QColor(255, 255, 255, alpha = 100))
             self.sourceImage = QPixmap(pixmap.size())
             self.sourceImage.fill(QColor(255, 255, 255, alpha = 100))
-            self.setPixmap(self.resultImage)
+            self.setPixmap(self.sourceImage)
         self.rubberBand = QRubberBand(QRubberBand.Rectangle, self)
         self.rubberBand.paintEvent = self.rbPaintEvent
             
@@ -86,11 +86,9 @@ class Label(QLabel):
         painter.fillRect(self.resultImage.rect(), Qt.transparent)
         self.destinationImage = QPixmap(self.rect.size())
         self.destinationImage.fill(QColor(255, 255, 255, alpha = 255))
-        painter.setCompositionMode(QPainter.CompositionMode_SourceOver)
         painter.drawPixmap(self.rect.topLeft() ,self.destinationImage)
         painter.setCompositionMode(QPainter.CompositionMode_SourceOut)
         painter.drawPixmap(0, 0, self.sourceImage)
-        painter.end()
         self.setPixmap(self.resultImage)
         
         
@@ -122,6 +120,7 @@ class Menu(QMenu):
     def handleActions(self, action):
         text = str(action.text())
         if text == 'Capture':
+            self.parentWin.label.hide()
             self.parentWin.label.deleteLater()
             self.parentWin.captureDesk()
             self.parentWin.showMaximized()
@@ -261,15 +260,19 @@ class Thread(QThread):
             time.sleep(2)
     
 helpMsg = ('- Cropping: Press left mouse button and drag it '+
-            'through the area which you want to crop.\n'+
-            '- Cancel cropping: Press Esc key on your keyboard.\n'+
+            'through the area which you want to crop.\n\n'+
+            '- Cancel cropping: Press Esc key on your keyboard.\n\n'+
             '- Preferences: Preferences window lets you manage:\na) Where to'+ 
             ' save the cropped images.\nb) What name should be given to the '+ 
             'cropped image (cropDesk will append 1,2,3... at the end of each '+
             'image name if you save multiple images in the same directory with'+
             ' same name.)\nc) "Close window when cropped" option closes the the'
-            +' cropping window when you are done with the first crop.'+
-            '\n- The path to the latest cropped image is always copied to the'+ 
+            +' cropping window when you are done with the first crop.\n'+
+            'd) Whiten background: this option makes the background transparent'+
+            ' white, so the cropped area looks separate from the area other'+
+            ' than cropped area.\ne) Image Quality: This option lets you handle'+
+             ' the quality of cropped image between 1 to 100'+
+            '\n\n- The path to the latest cropped image is always copied to the'+ 
             ' clipboard, you can paste it whereever you want after cropping the'
              +' image.')
     
