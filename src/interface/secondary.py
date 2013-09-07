@@ -35,20 +35,20 @@ class Label(QLabel):
         self.setCursor(cursor)
         if self.darkenBackground:
             self.resultImage = QPixmap(pixmap.size())
-            self.resultImage.fill(QColor(0, 0, 0, alpha = 100))
+            self.resultImage.fill(QColor(255, 255, 255, alpha = 100))
             self.sourceImage = QPixmap(pixmap.size())
-            self.sourceImage.fill(QColor(0, 0, 0, alpha = 100))
+            self.sourceImage.fill(QColor(255, 255, 255, alpha = 100))
             self.setPixmap(self.resultImage)
-        else:
-            self.rubberBand = QRubberBand(QRubberBand.Rectangle, self)
-            self.rubberBand.paintEvent = self.rbPaintEvent
+        self.rubberBand = QRubberBand(QRubberBand.Rectangle, self)
+        self.rubberBand.paintEvent = self.rbPaintEvent
             
     def rbPaintEvent(self, event):
         painter = QPainter(self.rubberBand)
-        painter.setPen(QPen(Qt.black, 1, Qt.SolidLine))
-        painter.setBrush(QBrush(Qt.NoBrush))
+        painter.setPen(QPen(Qt.black, 2, Qt.SolidLine))
+        #painter.setBrush(QBrush(Qt.NoBrush))
         rect = self.rubberBand.rect()
-        rect.setBottomRight(QPoint(rect.width() - 4, rect.height() - 4))
+        rect.setTopLeft(QPoint(rect.x() + 1, rect.y() + 1))
+        rect.setBottomRight(QPoint(rect.width() - 1, rect.height() - 1))
         painter.drawRect(QRect(rect.normalized()))
     
     def mousePressEvent(self, event):
@@ -59,9 +59,8 @@ class Label(QLabel):
             self.rect.setTopLeft(event.pos())
         if self.darkenBackground:
             self.setPixmap(self.sourceImage)
-        else:
-            self.rubberBand.setGeometry(self.rect)
-            self.rubberBand.show()
+        self.rubberBand.setGeometry(self.rect)
+        self.rubberBand.show()
 
     def mouseReleaseEvent(self, event):
         self.parentWin.showContextMenu(event)
@@ -79,15 +78,14 @@ class Label(QLabel):
             if self.darkenBackground:
                 self.drawImages()
                 self.repaint()
-            else:
-                self.rubberBand.setGeometry(self.rect)
+            self.rubberBand.setGeometry(self.rect)
             
     def drawImages(self):
         painter = QPainter(self.resultImage)
         painter.setCompositionMode(QPainter.CompositionMode_Source)
         painter.fillRect(self.resultImage.rect(), Qt.transparent)
         self.destinationImage = QPixmap(self.rect.size())
-        self.destinationImage.fill(QColor(0, 0, 0, alpha = 255))
+        self.destinationImage.fill(QColor(255, 255, 255, alpha = 255))
         painter.setCompositionMode(QPainter.CompositionMode_SourceOver)
         painter.drawPixmap(self.rect.topLeft() ,self.destinationImage)
         painter.setCompositionMode(QPainter.CompositionMode_SourceOut)
