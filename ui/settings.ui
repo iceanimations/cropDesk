@@ -127,7 +127,7 @@
         <item>
          <widget class="QCheckBox" name="darkenButton">
           <property name="text">
-           <string>Darken background</string>
+           <string>Whiten background</string>
           </property>
          </widget>
         </item>
