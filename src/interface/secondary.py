@@ -45,7 +45,7 @@ class Label(QLabel):
             
     def rbPaintEvent(self, event):
         painter = QPainter(self.rubberBand)
-        painter.setPen(QPen(Qt.black, 1, Qt.DashLine))
+        painter.setPen(QPen(Qt.black, 1, Qt.SolidLine))
         painter.setBrush(QBrush(Qt.NoBrush))
         rect = self.rubberBand.rect()
         rect.setBottomRight(QPoint(rect.width() - 4, rect.height() - 4))
