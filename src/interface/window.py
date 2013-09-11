@@ -41,6 +41,7 @@ class Window(QWidget):
         self.setTrayIcon()
         self.doneMenu = None
         self.data = None # data from settings file
+        self.preferencesWindow = secui.Preferences(self)
         self.setData()
         self.captureDesk()
         self.setWindowModality(Qt.ApplicationModal)
@@ -51,7 +52,6 @@ class Window(QWidget):
         self.setWindowFlags(Qt.MSWindowsFixedSizeDialogHint)
         self.setWindowFlags(Qt.CustomizeWindowHint)
         self.setWindowFlags(Qt.FramelessWindowHint)
-        self.preferencesWindow = secui.Preferences(self)
         
     def switchView(self):
         self.label.deleteLater()
