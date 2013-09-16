@@ -35,9 +35,9 @@ class Label(QLabel):
         self.setCursor(cursor)
         if self.darkenBackground:
             self.resultImage = QPixmap(pixmap.size())
-            self.resultImage.fill(QColor(255, 255, 255, alpha = 100))
+            self.resultImage.fill(QColor(255, 255, 255, alpha = 60))
             self.sourceImage = QPixmap(pixmap.size())
-            self.sourceImage.fill(QColor(255, 255, 255, alpha = 100))
+            self.sourceImage.fill(QColor(255, 255, 255, alpha = 60))
             self.setPixmap(self.sourceImage)
         self.rubberBand = QRubberBand(QRubberBand.Rectangle, self)
         self.rubberBand.paintEvent = self.rbPaintEvent
@@ -151,6 +151,9 @@ class Preferences(Form, Base):
         self.saveButton.clicked.connect(self.save)
         self.cancelButton.clicked.connect(self.hide)
         self.browseButton.clicked.connect(lambda: folderDialog(self))
+        regex = QRegExp('\\w+')
+        validator = QRegExpValidator(regex, self)
+        self.prefixBox.setValidator(validator)
         
     def showEvent(self, event):
         self.loadPreferences()

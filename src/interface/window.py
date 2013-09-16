@@ -54,8 +54,10 @@ class Window(QWidget):
         self.setWindowFlags(Qt.FramelessWindowHint)
         
     def switchView(self):
-        self.label.deleteLater()
-        self.captureDesk(self.pixmap)
+        try:
+            self.label.deleteLater()
+            self.captureDesk(self.pixmap)
+        except: pass
         
     def monitorFile(self):
         if self.runningFileCreated:
