@@ -7,6 +7,8 @@ import site
 site.addsitedir(r"R:\Python_Scripts")
 from PyQt4.QtGui import *
 from PyQt4.QtCore import Qt
+site.addsitedir(r"R:\Pipe_Repo\Users\Hussain\packages")
+from pgmagick.api import Image
 import secondary as secui
 import sys
 import os
@@ -105,8 +107,12 @@ class Window(QWidget):
         self.layout.addWidget(self.label)
         self.pixmap.save('D:/tempImage.png', None, 100)
         self.label.setStyleSheet("background-image: url(D:/tempImage.png)")
-        #self.label.setPixmap(self.pixmap)
-
+        
+        # update the database, how many times this app is used
+        site.addsitedir(r'r:/pipe_repo/users/qurban')
+        import appUsageApp
+        appUsageApp.updateDatabase('cropDesk')
+        
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Escape:
             self.hide()
@@ -153,10 +159,11 @@ class Window(QWidget):
             self.rect.setY(self.rect.y() + 28)
             self.rect.setHeight(self.rect.height() + 28)
         path = osp.normpath(path)
-        path = osp.splitext(path)[0] + '.png'
+        path2 = osp.splitext(path)[0] + '.jpg'
         self.pixmap.copy(self.rect).save(path, None, imageQuality)
-        path2 = osp.splitext(path)[0] +'.jpeg'
-        os.rename(path, path2)
+        im = Image(path)
+        im.write(path2)
+        os.remove(path)
         if self.data['closeWhenCropped'] == 'True':
             self.hide()
         clipBoard = QApplication.clipboard()
@@ -166,10 +173,11 @@ class Window(QWidget):
 
     def fileName(self, path, name):
         count = 1
-        name += str(count) + '.jpeg'
+        name += str(count) + '.jpg'
         while(True):
+            print osp.join(path, name)
             if osp.exists(osp.join(path, name)):
                 count += 1
                 name = name.replace(str(count - 1), str(count))
             else:
-                return name
+                return osp.splitext(name)[0] +'.png'

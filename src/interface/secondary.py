@@ -213,10 +213,6 @@ class Preferences(Form, Base):
         self.hide()
         self.parentWin.setData()
         self.parentWin.switchView()
-        
-def msgBoxCloseEvent(*args):
-    print 'hello'
-    
             
 def msgBox(parent, msg = None, btns = QMessageBox.Ok,
            icon = None, ques = None, details = None, title = 'cropDesk'):
@@ -229,7 +225,6 @@ def msgBox(parent, msg = None, btns = QMessageBox.Ok,
     '''
     if msg:
         mBox = QMessageBox(parent)
-        mBox.closeEvent = msgBoxCloseEvent
         mBox.setWindowModality(Qt.ApplicationModal)
         mBox.setWindowTitle(title)
         mBox.setText(msg)
